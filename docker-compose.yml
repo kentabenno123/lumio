@@ -4,15 +4,20 @@
 # Für Entwicklung: docker compose up -d
 # Für Produktion: zusätzlich docker-compose.prod.yml mergen (siehe Docs).
 
+
 services:
   # ---------------------------------------------------------------------------
   # Reverse Proxy — TLS, HTTP/3, Routing
   # ---------------------------------------------------------------------------
+
   caddy:
     build:
       context: .
       dockerfile: infra/caddy/Dockerfile
     container_name: lumio_caddy
+    configs:
+    - source: caddyfile
+      target: /etc/caddy/Caddyfile
     restart: unless-stopped
     environment:
       # LUMIO_HOST: bewusst KEIN Default. Wenn nicht gesetzt, fällt
@@ -25,8 +30,10 @@ services:
       # WICHTIG: Default ist eine tote Loopback-Adresse, NICHT leer —
       # Caddys {$VAR:default} greift nur bei UNGESETZTER Variable; eine
       # leere ergäbe einen Site-Block ohne Key und Caddy startet nicht.
+
       - LUMIO_HOST=${LUMIO_HOST:-127.0.0.1:9}
       - LUMIO_S3_HOST=${LUMIO_S3_HOST:-:81}
+
       # Optional: Wildcard-Hostname für Tenant-Subdomains. Default ist
       # ein internes Pseudo-Host (127.0.0.1:9), das niemals von außen
       # erreichbar ist — der Caddy-Block matched dann nichts, und der
@@ -35,15 +42,20 @@ services:
       # Tote Default-Adressen müssen sich pro Block in der IP unterscheiden
       # (nicht nur im Port): Caddys TLS-Automation-Policies sind Host-basiert,
       # gleiche IP in zwei Blöcken = "ambiguous automation policy"-Crash.
+
       - LUMIO_WILDCARD_HOST=${LUMIO_WILDCARD_HOST:-127.0.0.2:9}
+      
       # Optional: Host für die Umami-Analytics (infra/umami). Default
       # 127.0.0.1:9 = inaktiv (kein Cert-Versuch). Aktivieren in .env mit
       # z.B. LUMIO_UMAMI_HOST=stats.lumio-cloud.de (A-Record + laufender
       # Umami-Stack vorausgesetzt).
+      
       - LUMIO_UMAMI_HOST=${LUMIO_UMAMI_HOST:-127.0.0.3:9}
+      
       # Marketing-Sites (opt-in, siehe Caddyfile): default-tot mit je
       # eigener Loopback-IP. Wer die Sites neben Lumio fährt, setzt die
       # echten Domains in der .env.
+      
       - LUMIO_MARKETING_CLOUD_DE_HOST=${LUMIO_MARKETING_CLOUD_DE_HOST:-127.0.0.4:9}
       - LUMIO_MARKETING_APP_DE_HOST=${LUMIO_MARKETING_APP_DE_HOST:-127.0.0.5:9}
       - LUMIO_MARKETING_CLOUD_COM_HOST=${LUMIO_MARKETING_CLOUD_COM_HOST:-127.0.0.6:9}
@@ -53,7 +65,7 @@ services:
       - "${CADDY_HTTPS_PORT:-443}:443"
       - "${CADDY_HTTPS_PORT:-443}:443/udp"
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./infra/caddy/secrets:/etc/caddy/secrets:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -70,9 +82,11 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+      
       # NEXT_PUBLIC_* müssen zur Build-Zeit gesetzt sein (Next.js backt sie
       # ins Bundle). Das environment unten ist für etwaige Server-Side-Reads
       # zusätzlich gesetzt, ersetzt aber NICHT diese Build-Args.
+      
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
         NEXT_PUBLIC_DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-single}
@@ -81,27 +95,35 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      
       # Leer = same-origin: API-Calls gehen an denselben Host wie das Frontend,
       # also durch Caddy. Bei Split-Deployment kann NEXT_PUBLIC_API_URL gesetzt
       # werden (z.B. https://api.example.com).
+      
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+      
       # API-Adresse fuer serverseitige Renders (Metadaten/Open-Graph).
       # NICHT dasselbe wie NEXT_PUBLIC_API_URL: das darf leer sein
       # (same-origin im Browser), hier braucht Node aber eine absolute
       # URL — ein relativer Pfad wirft "Failed to parse URL". Default im
       # Code ist der Container-Name; nur bei Split-Deployment aendern.
+      
       - INTERNAL_API_URL=${INTERNAL_API_URL:-}
       - NEXT_PUBLIC_DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-single}
+      
       # Im Multi-Mode: Basis-Domain des Cloud-Setups (z.B. lumio-cloud.de).
       # Wird vom Frontend genutzt um Apex- von Tenant-Subdomain zu
       # unterscheiden und beim Tenant-Picker die Subdomain-URL zu bauen.
       # Im Single-Mode irrelevant, kann leer bleiben.
+      
       - NEXT_PUBLIC_DOMAIN_BASE=${LUMIO_DOMAIN_BASE:-}
+    
     # Direkter Frontend-Port ist nur für Debug nützlich — externe Anfragen
     # gehen durch Caddy. Default-Bind ist 127.0.0.1, damit der Container nicht
     # versehentlich ohne Caddy aus dem Internet erreichbar ist. Für direkte
     # Erreichbarkeit FRONTEND_PORT in der .env setzen und (optional) das
     # Binding auf 0.0.0.0 ändern.
+    
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -122,19 +144,27 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-single}
+      
       # Muss dem MinIO-Port-Mapping unten entsprechen: ohne S3_PUBLIC_URL
       # signiert die API presigned URLs auf http://<request-host>:<PORT>.
+      
       - MINIO_API_PORT=${MINIO_API_PORT:-9000}
+      
       # Feature-Flags global aktivieren (Self-Hosting ohne Super-Admin),
       # z.B. FEATURES_ENABLED=print_shop,advanced_analytics
+      
       - FEATURES_ENABLED=${FEATURES_ENABLED:-}
+      
       # Print-Provider global aktivieren (Self-Hosting), z.B.
       # PRINT_PROVIDERS_ENABLED=prodigi,gelato — Self-Print ist immer an.
+      
       - PRINT_PROVIDERS_ENABLED=${PRINT_PROVIDERS_ENABLED:-}
       - PUBLIC_URL=${PUBLIC_URL}
+      
       # Basis-Domain für die Subdomain-Tenant-Auflösung (Multi-Mode).
       # Ohne diese Variable erkennt resolveTenant <slug>.<base> nicht und
       # jede Tenant-Subdomain fällt auf tenant:null zurück.
+      
       - LUMIO_DOMAIN_BASE=${LUMIO_DOMAIN_BASE:-}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
@@ -154,19 +184,25 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM=${SMTP_FROM:-}
       - SMTP_SECURE=${SMTP_SECURE:-false}
+      
       # Antwortadresse. SMTP_FROM ist ueblicherweise eine noreply-Adresse
       # ohne Postfach — ohne Reply-To laufen Antworten der Empfaenger ins
       # Leere. Ohne Wert wird kein Reply-To-Header gesetzt.
+      
       - SMTP_REPLY_TO=${SMTP_REPLY_TO:-}
+      
       # Kontaktadressen in System-Mails. Ohne SUPPORT_EMAIL faellt Lumio
       # auf die Adresse aus SMTP_REPLY_TO zurueck; ist beides leer, nennen
       # die Mails gar keine Adresse und das Support-Formular im Studio
       # bleibt ausgeblendet (GET /instance → supportFormEnabled=false).
+      
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-}
       - FEEDBACK_EMAIL=${FEEDBACK_EMAIL:-}
+      
       # Sprache ausgehender Mails, wenn am Studio bzw. am User keine
       # gesetzt ist. Nur Mails — die Oberflaeche folgt weiterhin dem
       # Browser. Ohne Wert: de.
+      
       - DEFAULT_MAIL_LOCALE=${DEFAULT_MAIL_LOCALE:-de}
       - MAIL_FOOTER_TEXT=${MAIL_FOOTER_TEXT:-}
       - MAIL_FOOTER_URL=${MAIL_FOOTER_URL:-}
@@ -178,13 +214,17 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LUMIO_LEGAL_IMPRINT_URL=${LUMIO_LEGAL_IMPRINT_URL:-}
       - LUMIO_LEGAL_PRIVACY_URL=${LUMIO_LEGAL_PRIVACY_URL:-}
+      
       # Update-Check (Super-Admin → System). Quelle default = Forgejo (im
       # Code); Token nötig wenn das Repo privat ist.
+      
       - LUMIO_UPDATE_REPO_URL=${LUMIO_UPDATE_REPO_URL:-}
       - LUMIO_UPDATE_REPO_TOKEN=${LUMIO_UPDATE_REPO_TOKEN:-}
       - DISABLE_UPDATE_CHECK=${DISABLE_UPDATE_CHECK:-}
+    
     # Auch hier: direkter Port ist Debug-Hilfe, regulärer Zugriff geht durch
     # Caddy → /api/*.
+    
     ports:
       - "127.0.0.1:${API_PORT:-3001}:3001"
     depends_on:
@@ -329,7 +369,7 @@ services:
   # MinIO-Bucket-Init — legt beim ersten Start den Bucket an
   # ---------------------------------------------------------------------------
   minio_init:
-    image: quay.io/minio/minio:latest
+    image: quay.io/minio/mc:latest
     container_name: lumio_minio_init
     depends_on:
       minio:
@@ -410,3 +450,253 @@ volumes:
 networks:
   lumio_net:
     driver: bridge
+    
+configs:
+  caddyfile:
+    content: |
+      # =============================================================================
+      # Lumio — Caddy Configuration
+      # =============================================================================
+      # Konfiguriert drei Site-Adressen mit identischem Verhalten:
+      #
+      #   1. LUMIO_HOST         → Haupt-App-Domain (Frontend + API + WS)
+      #   2. LUMIO_WILDCARD_HOST → Tenant-Subdomains (opt-in, default leer)
+      #   3. http://             → Catch-All für Custom-Domains der Kunden
+      #
+      # Und einen vierten Block für S3:
+      #   4. LUMIO_S3_HOST       → MinIO / S3
+      #
+      # Examples:
+      #   Lokales Setup (Default-Werte) — LUMIO_HOST unset, Catch-All
+      #   bedient lokalen Traffic auf Port 80:
+      #     LUMIO_HOST=                 # nicht setzen
+      #     LUMIO_S3_HOST=:81
+      #
+      #   Produktion mit eigener Domain — LUMIO_HOST ist eine echte
+      #   Hostname, der Catch-All fängt Custom-Domains der Kunden ab:
+      #     LUMIO_HOST=studio.lumio-cloud.de
+      #     LUMIO_S3_HOST=s3.lumio-cloud.de
+      #
+      #   Hinter externem Reverse-Proxy (TLS-Termination woanders):
+      #     LUMIO_HOST=studio.lumio-cloud.de   # Host bleibt nötig für spezifischen Block
+      #     LUMIO_S3_HOST=s3.lumio-cloud.de
+      #     externer Proxy: studio.lumio-cloud.de → docker-host:CADDY_HTTP_PORT
+      #     externer Proxy: s3.lumio-cloud.de     → docker-host:CADDY_HTTP_PORT
+      #     externer Proxy: foto-kunde.de         → docker-host:CADDY_HTTP_PORT
+      #     (Custom-Domains werden ohne Env-Änderung vom Catch-All bedient)
+      #
+      # Hinweis: die Marketing-Seiten lumio-cloud.de (SaaS-Pitch) und
+      # lumio-app.de (Open-Source-Pitch) leben in eigenen Repos und werden
+      # NICHT über diesen Caddy bedient — der externe Reverse-Proxy routet
+      # diese Domains auf separate Container.
+      #
+      # trusted_proxies sorgt dafür, dass X-Forwarded-Proto eines externen
+      # Reverse-Proxies respektiert wird (siehe Kommentar dort).
+
+      {
+      	admin off
+      	servers {
+      		trusted_proxies static private_ranges
+      	}
+      }
+
+      # Gemeinsamer Block-Inhalt für alle App-Blöcke (Hauptdomain, Wildcard,
+      # Custom-Domain-Catch-All). Snippets in Caddy v2 werden mit & am Anfang
+      # referenziert und mit `import` eingebunden.
+
+      (lumio_app) {
+      	reverse_proxy /api/*   api:3001
+      	reverse_proxy /health  api:3001
+      	reverse_proxy /ws/*    api:3001
+
+      	reverse_proxy frontend:3000
+
+      	encode zstd gzip
+
+      	header {
+      		X-Content-Type-Options "nosniff"
+      		Referrer-Policy "strict-origin-when-cross-origin"
+
+      		# Clickjacking-Schutz. SAMEORIGIN, weil das Studio keine fremde
+      		# Einbettung braucht. Sicher zu erzwingen.
+      		X-Frame-Options "SAMEORIGIN"
+
+      		# HSTS — Caddy liefert ohnehin nur https aus. 1 Jahr, inkl.
+      		# Subdomains (Wildcard *.lumio-cloud.de ist alles TLS). Kein
+      		# `preload`, das ist eine harte, schwer rücknehmbare Zusage.
+      		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+      
+      		-Server
+      
+      		# --- Content-Security-Policy -----------------------------------
+      		# Bewusst ERST im Report-Only-Modus: bricht nichts, sammelt aber
+      		# Verstöße (report-uri/Console), damit die Policy gegen die echte
+      		# App getunt werden kann, bevor sie scharf geschaltet wird.
+      		#
+      		# Die Policy deckt ab, was im Code sichtbar ist: eigene Assets,
+      		# S3/Object-Storage-Bilder (signierte URLs), Bunny-Fonts,
+      		# Stripe (Checkout/Elements), Umami-Analytics, WebSocket (/ws).
+      		# Inline-Styles sind erlaubt (Custom-CSS + Heading-Font-Block);
+      		# Inline-Scripts via 'unsafe-inline' nur, weil Astro/Next sonst
+      		# bei der Hydration brechen können — beim Scharfschalten idealer-
+      		# weise auf Nonces umstellen.
+      		#
+      		# Zum Erzwingen: Zeile auf `Content-Security-Policy` umbenennen
+      		# (Header-Name ohne `-Report-Only`) und vorher in der Browser-
+      		# Konsole prüfen, dass keine Verstöße mehr auflaufen.
+      		Content-Security-Policy-Report-Only "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline' https://fonts.bunny.net; font-src 'self' data: https://fonts.bunny.net; script-src 'self' 'unsafe-inline' https://js.stripe.com; connect-src 'self' https: wss:; frame-src https://js.stripe.com https://hooks.stripe.com; frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; report-uri /api/v1/csp-report"
+      	}
+      }
+
+      # -----------------------------------------------------------------------------
+      # Hauptseite — Frontend + API
+      # -----------------------------------------------------------------------------
+      # In Produktion ist LUMIO_HOST=studio.lumio-cloud.de gesetzt → spezifischer
+      # Block, greift vor dem Catch-All darunter. In lokalem Dev ohne
+      # LUMIO_HOST entfällt dieser Block (Default 127.0.0.1:9 = unerreichbar,
+      # Caddy startet ohne Fehler), und der http://-Catch-All bedient alles.
+      #
+      # Wichtig: wir können hier NICHT `:80` als Default verwenden — das
+      # kollidierte mit dem http://-Block darunter, weil beide auf Port 80
+      # lauschen wollen.
+
+      {$LUMIO_HOST:127.0.0.1:9} {
+      	import lumio_app
+      }
+
+      # -----------------------------------------------------------------------------
+      # Tenant-Subdomains — <slug>.lumio-cloud.de (opt-in)
+      # -----------------------------------------------------------------------------
+      # Konfiguration über LUMIO_WILDCARD_HOST, z.B.:
+      #   LUMIO_WILDCARD_HOST=*.lumio-cloud.de
+      #
+      # Wenn die Wildcard nicht aktiv sein soll, LUMIO_WILDCARD_HOST einfach
+      # unverändert auf dem Default lassen — der Block fällt dann auf einen
+      # unerreichbaren Loopback-Port (127.0.0.1:9), Caddy startet ohne Fehler
+      # und der Block matcht nichts (und holt kein Cert).
+      #
+      # Bei aktiver Wildcard: Let's Encrypt verlangt für *.<DOMAIN> eine DNS-01-
+      # Challenge (HTTP-01 funktioniert nicht für Wildcards). Wir nutzen acme-dns
+      # als Vermittler — die Credentials liegen in infra/caddy/secrets/acmedns.json
+      # (NIE in git committen!), CNAME _acme-challenge.<DOMAIN> zeigt auf den
+      # acme-dns-Server. Setup siehe docs/MULTI_TENANT.md.
+
+      {$LUMIO_WILDCARD_HOST:127.0.0.2:9} {
+      	tls {
+      		# Pfad via Env: der Entrypoint (infra/caddy/entrypoint.sh) zeigt auf
+      		# die echte Datei in secrets/, oder — falls sie fehlt (frischer Clone,
+      		# Wildcard nicht in Benutzung) — auf eine eingebackene Dummy-Datei.
+      		# Das acmedns-Plugin liest die Datei bereits beim Caddy-START; ohne
+      		# existierende Datei startet Caddy gar nicht, auch wenn der
+      		# Wildcard-Block auf einer toten Adresse liegt.
+      		dns acmedns {$ACMEDNS_CONFIG:/etc/caddy/secrets/acmedns.json}
+      	}
+      	import lumio_app
+      }
+
+      # -----------------------------------------------------------------------------
+      # Marketing-Sites (optional, je nach Deployment)
+      # -----------------------------------------------------------------------------
+      # Statische Astro-Sites neben dem App-Stack. Im selben Docker-Netz wie
+      # Lumio (lumio_net via external: true in deren Compose-Files), Caddy
+      # proxiert auf die Container-DNS-Namen. Beide Blöcke sind opt-in — falls
+      # du nur Lumio fährst, kannst du sie löschen oder ignorieren (Caddy
+      # liefert die Domains dann mangels DNS einfach nicht aus).
+      #
+      # Alle vier Blöcke sind wie LUMIO_HOST env-gesteuert und default-tot
+      # (jeweils eigene tote Loopback-IP — TLS-Policies sind Host-basiert,
+      # gleiche IPs würden kollidieren). Grund: hart kodierte Domains hier
+      # führten dazu, dass JEDE frische Installation weltweit sofort
+      # Let's-Encrypt-Challenges für fremde (unsere) Domains startete.
+      # Aktivierung in .env, z.B.:
+      #   LUMIO_MARKETING_CLOUD_DE_HOST=lumio-cloud.de
+      # Cert wird von Caddy automatisch geholt (HTTP-01-Challenge, kein
+      # DNS-Setup nötig solange der A-Record steht).
+      {$LUMIO_MARKETING_CLOUD_DE_HOST:127.0.0.4:9} {
+      	reverse_proxy lumio-cloud-de-web-1:4321
+      	encode zstd gzip
+      }
+
+      {$LUMIO_MARKETING_APP_DE_HOST:127.0.0.5:9} {
+      	reverse_proxy lumio-app-de-web-1:80
+      	encode zstd gzip
+      }
+
+      # lumio-cloud.com — internationale Portal-/Einstiegsseite (Split-Screen,
+      # zweigt zu Cloud bzw. Self-Hosted ab). Eigenes Repo (Lumio-cloud-com),
+      # statische Astro-Site → Nginx, am lumio_lumio_net.
+      {$LUMIO_MARKETING_CLOUD_COM_HOST:127.0.0.6:9} {
+      	reverse_proxy lumio-cloud-com-web-1:80
+      	encode zstd gzip
+      }
+
+      # www → apex (nur wirksam, wenn auch ein www-A-Record gesetzt ist).
+      # Redirect-Ziel = der Apex-Host aus der Env darüber.
+      {$LUMIO_MARKETING_CLOUD_COM_WWW_HOST:127.0.0.7:9} {
+      	redir https://{$LUMIO_MARKETING_CLOUD_COM_HOST:127.0.0.6:9}{uri} permanent
+      }
+
+      # -----------------------------------------------------------------------------
+      # Umami — Web-Analytics (opt-in via LUMIO_UMAMI_HOST)
+      # -----------------------------------------------------------------------------
+      # Eigenständiger Stack unter infra/umami (s. dort). Hängt am selben
+      # lumio_net, daher per Container-DNS 'lumio_umami' erreichbar.
+      #
+      # Wie LUMIO_HOST/LUMIO_WILDCARD_HOST über eine Env-Variable gesteuert:
+      # nicht gesetzt -> Default 127.0.0.1:9 (unerreichbarer Loopback), der
+      # Block matcht nichts und Caddy holt KEIN Cert. Wer Umami fährt, setzt
+      # LUMIO_UMAMI_HOST=stats.<domain> in der .env (und sorgt für A-Record +
+      # laufenden Umami-Stack). Der spezifische Host greift dann VOR dem
+      # *.<domain>-Wildcard (der sonst per import lumio_app an die App ginge).
+
+      {$LUMIO_UMAMI_HOST:127.0.0.3:9} {
+      	reverse_proxy lumio_umami:3000
+      	encode zstd gzip
+      }
+
+      # -----------------------------------------------------------------------------
+      # Custom-Domains — Catch-All
+      # -----------------------------------------------------------------------------
+      # Greift wenn der Host-Header keiner der spezifischeren Blöcke darüber
+      # matched. Praktischer Fall: ein Kunde lässt foto-kunde.de auf unsere
+      # IP zeigen, trägt im Studio den Custom-Domain ein, der externe Caddy
+      # leitet den Request hierher.
+      #
+      # Ohne diesen Block würde Caddy v2 für unbekannte Hosts entweder 404
+      # senden oder (bei aktivem auto_https) einen 308 nach https:// — was
+      # in einem externen-Caddy-+-internen-Caddy-Setup einen Endless-Redirect-
+      # Loop produziert (ERR_TOO_MANY_REDIRECTS im Browser).
+      #
+      # Tenant-Auflösung passiert in der API über den Host-Header
+      # (resolveTenant Schritt "Custom Domain" in apps/api/src/plugins/auth.ts).
+      # Wenn die Domain in tenants.customDomain steht: alles läuft. Wenn nicht:
+      # Default-Tenant oder 404 (kein Loop).
+      #
+      # `http://` ohne Host-Spec ist ein Catch-All. In Caddy v2 sind benannte
+      # Hosts spezifischer und werden zuerst gematcht — dieser Block greift
+      # nur wenn keine andere Site den Request übernehmen kann.
+
+      http:// {
+      	import lumio_app
+      }
+
+      # -----------------------------------------------------------------------------
+      # S3 / MinIO — separater Hostname
+      # -----------------------------------------------------------------------------
+      # MinIO unterstützt kein Path-Präfix-Rewriting (die AWS-V4-Signatur wird
+      # über den vollen Path inkl. Bucket-Name berechnet). Deshalb läuft S3-Traffic
+      # auf einem eigenen Hostname und nicht etwa hinter /s3/ am Hauptdomain.
+      #
+      # Der Host-Header darf hier NICHT durch Caddy überschrieben werden — die API
+      # signiert die presigned URL mit dem Host-Header, den der Browser später
+      # sendet (siehe S3_PUBLIC_URL in apps/api/src/services/storage.ts).
+
+      {$LUMIO_S3_HOST::81} {
+      	reverse_proxy minio:9000 {
+      		header_up Host {host}
+      	}
+
+      	# CORS für Browser-Uploads (PUT) — MinIO setzt eigene CORS-Header, aber
+      	# wir lassen den Block hier als Dokumentation für später, falls MinIO
+      	# CORS aus irgendeinem Grund nicht selbst handhabt.
+      }
