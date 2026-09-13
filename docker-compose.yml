@@ -632,7 +632,7 @@ configs:
 
       # www → apex (nur wirksam, wenn auch ein www-A-Record gesetzt ist).
       # Redirect-Ziel = der Apex-Host aus der Env darüber.
-      {$LUMIO_MARKETING_CLOUD_COM_WWW_HOST:127.0.0.7:9} {
+      {$$LUMIO_MARKETING_CLOUD_COM_WWW_HOST:127.0.0.7:9} {
       	redir https://{$LUMIO_MARKETING_CLOUD_COM_HOST:127.0.0.6:9}{uri} permanent
       }
 
