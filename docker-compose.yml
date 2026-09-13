@@ -124,8 +124,8 @@ services:
     # Erreichbarkeit FRONTEND_PORT in der .env setzen und (optional) das
     # Binding auf 0.0.0.0 ändern.
     
-    #ports:
-    #  - "0.0.0.0:8181:3000"
+    ports:
+      - "0.0.0.0:8181:3000"
     depends_on:
       - api
     networks:
@@ -225,8 +225,8 @@ services:
     # Auch hier: direkter Port ist Debug-Hilfe, regulärer Zugriff geht durch
     # Caddy → /api/*.
     
-    #ports:
-       #- "127.0.0.1:3101:3001"
+    ports:
+       - "127.0.0.1:3101:3001"
     depends_on:
       postgres:
         condition: service_healthy
