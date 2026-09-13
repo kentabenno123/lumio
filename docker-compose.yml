@@ -560,7 +560,7 @@ configs:
       # kollidierte mit dem http://-Block darunter, weil beide auf Port 80
       # lauschen wollen.
 
-      {$LUMIO_HOST:127.0.0.1:9} {
+      {$$LUMIO_HOST:127.0.0.1:9} {
       	import lumio_app
       }
 
@@ -581,7 +581,7 @@ configs:
       # (NIE in git committen!), CNAME _acme-challenge.<DOMAIN> zeigt auf den
       # acme-dns-Server. Setup siehe docs/MULTI_TENANT.md.
 
-      {$LUMIO_WILDCARD_HOST:127.0.0.2:9} {
+      {$$LUMIO_WILDCARD_HOST:127.0.0.2:9} {
       	tls {
       		# Pfad via Env: der Entrypoint (infra/caddy/entrypoint.sh) zeigt auf
       		# die echte Datei in secrets/, oder — falls sie fehlt (frischer Clone,
@@ -589,7 +589,7 @@ configs:
       		# Das acmedns-Plugin liest die Datei bereits beim Caddy-START; ohne
       		# existierende Datei startet Caddy gar nicht, auch wenn der
       		# Wildcard-Block auf einer toten Adresse liegt.
-      		dns acmedns {$ACMEDNS_CONFIG:/etc/caddy/secrets/acmedns.json}
+      		dns acmedns {$$ACMEDNS_CONFIG:/etc/caddy/secrets/acmedns.json}
       	}
       	import lumio_app
       }
@@ -612,12 +612,12 @@ configs:
       #   LUMIO_MARKETING_CLOUD_DE_HOST=lumio-cloud.de
       # Cert wird von Caddy automatisch geholt (HTTP-01-Challenge, kein
       # DNS-Setup nötig solange der A-Record steht).
-      {$LUMIO_MARKETING_CLOUD_DE_HOST:127.0.0.4:9} {
+      {$$LUMIO_MARKETING_CLOUD_DE_HOST:127.0.0.4:9} {
       	reverse_proxy lumio-cloud-de-web-1:4321
       	encode zstd gzip
       }
 
-      {$LUMIO_MARKETING_APP_DE_HOST:127.0.0.5:9} {
+      {$$LUMIO_MARKETING_APP_DE_HOST:127.0.0.5:9} {
       	reverse_proxy lumio-app-de-web-1:80
       	encode zstd gzip
       }
@@ -625,7 +625,7 @@ configs:
       # lumio-cloud.com — internationale Portal-/Einstiegsseite (Split-Screen,
       # zweigt zu Cloud bzw. Self-Hosted ab). Eigenes Repo (Lumio-cloud-com),
       # statische Astro-Site → Nginx, am lumio_lumio_net.
-      {$LUMIO_MARKETING_CLOUD_COM_HOST:127.0.0.6:9} {
+      {$$LUMIO_MARKETING_CLOUD_COM_HOST:127.0.0.6:9} {
       	reverse_proxy lumio-cloud-com-web-1:80
       	encode zstd gzip
       }
@@ -649,7 +649,7 @@ configs:
       # laufenden Umami-Stack). Der spezifische Host greift dann VOR dem
       # *.<domain>-Wildcard (der sonst per import lumio_app an die App ginge).
 
-      {$LUMIO_UMAMI_HOST:127.0.0.3:9} {
+      {$$LUMIO_UMAMI_HOST:127.0.0.3:9} {
       	reverse_proxy lumio_umami:3000
       	encode zstd gzip
       }
@@ -691,7 +691,7 @@ configs:
       # signiert die presigned URL mit dem Host-Header, den der Browser später
       # sendet (siehe S3_PUBLIC_URL in apps/api/src/services/storage.ts).
 
-      {$LUMIO_S3_HOST::81} {
+      {$$LUMIO_S3_HOST::81} {
       	reverse_proxy minio:9000 {
       		header_up Host {host}
       	}
